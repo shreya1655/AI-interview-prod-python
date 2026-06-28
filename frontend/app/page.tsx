@@ -1,78 +1,98 @@
 "use client";
+
 import { useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-
-type Question = { id: number; question: string; topic: string };
+const API =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export default function Home() {
-  const [role, setRole] = useState("SDE Intern");
-  const [level, setLevel] = useState("Medium");
-  const [resumeContext, setResumeContext] = useState("");
-  const [interviewId, setInterviewId] = useState<number | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<string[]>([]);
-  const [feedback, setFeedback] = useState<any>(null);
+  const [role, setRole] = useState("");
   const [loading, setLoading] = useState(false);
-  const userId = typeof window !== "undefined" ? localStorage.getItem("demoUserId") || "demo-user" : "demo-user";
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [error, setError] = useState("");
 
-  async function startInterview() {
-    setLoading(true); setFeedback(null);
+  async function generateInterview() {
+    setLoading(true);
+    setError("");
+    setQuestions([]);
+
     try {
       const res = await fetch(`${API}/interviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-User-Id": userId },
-        body: JSON.stringify({ role, level, resume_context: resumeContext, num_questions: 5 })
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: role || "Software Developer Intern",
+        }),
       });
-      if (!res.ok) throw new Error(await res.text());
+
+      if (!res.ok) {
+        throw new Error("Failed to generate interview");
+      }
+
       const data = await res.json();
-      setInterviewId(data.id); setQuestions(data.questions); setAnswers(Array(data.questions.length).fill(""));
-    } catch (e:any) { alert(e.message); }
-    finally { setLoading(false); }
+      setQuestions(data.questions || []);
+    } catch (err) {
+      setError("Could not connect to backend. Check API URL.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function evaluate() {
-    if (!interviewId) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/interviews/${interviewId}/evaluate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-User-Id": userId },
-        body: JSON.stringify({ answers })
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json(); setFeedback(data.feedback);
-    } catch (e:any) { alert(e.message); }
-    finally { setLoading(false); }
-  }
+  return (
+    <main className="min-h-screen bg-gray-950 text-white px-6 py-10">
+      <section className="max-w-3xl mx-auto">
+        <h1 className="text-4xl font-bold mb-4">
+          AI Mock Interview Platform
+        </h1>
 
-  return <main className="container">
-    <h1>AI Mock Interview Platform</h1>
-    <p className="muted">Python FastAPI backend + batched 5-question interview + one final Gemini evaluation.</p>
-    <section className="card">
-      <div className="grid">
-        <label>Role<input value={role} onChange={e=>setRole(e.target.value)} /></label>
-        <label>Level<select value={level} onChange={e=>setLevel(e.target.value)}><option>Easy</option><option>Medium</option><option>Hard</option></select></label>
-      </div>
-      <label>Resume / project context<textarea rows={4} value={resumeContext} onChange={e=>setResumeContext(e.target.value)} placeholder="Paste project/resume context here" /></label>
-      <button disabled={loading} onClick={startInterview}>{loading ? "Generating..." : "Generate 5-question Interview"}</button>
-    </section>
+        <p className="text-gray-300 mb-8">
+          Generate role-based technical interview questions using your deployed
+          Python FastAPI backend and Gemini.
+        </p>
 
-    {questions.length > 0 && <section className="card">
-      <h2>Interview Questions</h2>
-      {questions.map((q, i) => <div className="question" key={q.id || i}>
-        <b>Q{i+1}. {q.question}</b><p className="muted">Topic: {q.topic}</p>
-        <textarea rows={5} value={answers[i]} onChange={e => { const next=[...answers]; next[i]=e.target.value; setAnswers(next); }} placeholder="Write or paste your answer..." />
-      </div>)}
-      <button disabled={loading || answers.some(a=>!a.trim())} onClick={evaluate}>{loading ? "Evaluating..." : "Submit all answers for feedback"}</button>
-    </section>}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-lg">
+          <label className="block text-sm text-gray-400 mb-2">
+            Target Role
+          </label>
 
-    {feedback && <section className="card">
-      <h2>Feedback</h2>
-      <div className="score">{feedback.overallScore}/100</div>
-      <p><b>Technical Depth:</b> {feedback.technicalDepth}/100</p>
-      <p><b>Communication:</b> {feedback.communication}/100</p>
-      <pre>{JSON.stringify(feedback, null, 2)}</pre>
-    </section>}
-  </main>;
+          <input
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            placeholder="Software Developer Intern"
+            className="w-full rounded-xl bg-gray-800 border border-gray-700 px-4 py-3 text-white outline-none focus:border-blue-500"
+          />
+
+          <button
+            onClick={generateInterview}
+            disabled={loading}
+            className="mt-5 rounded-xl bg-blue-600 px-5 py-3 font-semibold hover:bg-blue-700 disabled:opacity-60"
+          >
+            {loading ? "Generating..." : "Generate Questions"}
+          </button>
+
+          {error && (
+            <p className="mt-4 text-red-400">
+              {error}
+            </p>
+          )}
+        </div>
+
+        {questions.length > 0 && (
+          <div className="mt-8 bg-gray-900 border border-gray-800 rounded-2xl p-6">
+            <h2 className="text-2xl font-semibold mb-4">
+              Interview Questions
+            </h2>
+
+            <ol className="space-y-3 list-decimal list-inside text-gray-200">
+              {questions.map((q, index) => (
+                <li key={index}>{q}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </section>
+    </main>
+  );
 }
